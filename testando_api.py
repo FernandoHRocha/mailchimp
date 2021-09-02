@@ -3,8 +3,8 @@ import configuration as cfg
 
 mailchimp = Client()
 mailchimp.set_config({
-   "api_key": cfg.credentials['chave_api'],
-   "server": cfg.credentials['servidor']
+   "api_key": cfg.credenciais['chave_api'],
+   "server": cfg.credenciais['servidor']
 })
 
 #response = mailchimp.lists.add_list_member(cfg.credentials['lista'], {"email_address": "fhrlobacz@hotmail.com", "status": "subscribed"})
