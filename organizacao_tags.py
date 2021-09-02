@@ -11,11 +11,11 @@ parametros_membros = {
         'Authorization': 'apiKey '+chave_api,
 }
 
-resposta = requests.get(root+'lists/'+lista+'/members?count=5&offset=10&status=subscribed',headers=parametros_membros).json()
+resposta = requests.get(root+'lists/'+lista+'/members?count=1&offset=10&status=subscribed',headers=parametros_membros).json()
 membros = resposta['members']
-lista_membros = [[membro['email_address'],membro['merge_fields']['FNAME'],membro['merge_fields']['LNAME']]for membro in membros]
+lista_membros = [[membro['email_address'],membro['merge_fields']['FNAME'],membro['merge_fields']['LNAME'], [tag if (len(tag) > 0) else None for tag in membro['tags']]] for membro in membros]
 #print([tag if (len(tag) > 0) else None for tag in [membro['tags'] for membro in membros]])
 #print([membro['merge_fields']['FNAME'] for membro in membros])
-#print(lista_membros[0])
+print(lista_membros)
 
 #response = mailchimp.lists.add_list_member(cfg.credentials['lista'], {"email_address": "", "status": "subscribed"})
