@@ -3,8 +3,9 @@ import openpyxl
 import configuration as cfg
 import requests
 from openpyxl import Workbook, workbook
-from datetime import date
+from mailchimp_marketing.api_client import ApiClientError
 import json
+import hashlib
 
 chave_api = cfg.credenciais['chave_api']
 servidor = cfg.credenciais['servidor']
@@ -12,8 +13,13 @@ lista = cfg.credenciais['lista']
 root = 'https://'+servidor+'.api.mailchimp.com/3.0/'
 
 parametros_membros = {
-        'Authorization': 'apiKey '+chave_api,
+        'Authorization': 'apiKey '+chave_api
 }
+
+def obter_hash_inscrito(email):
+    email = email.lower().encode()
+    m = hashlib.md5(email)
+    return m.hexdigest()
 
 def tags_para_lista(membro):
         tags = []
@@ -30,66 +36,18 @@ def tags_para_lista(membro):
 
 def substituir_padrao(busca,tags,retorno):
         if(tags.find(busca.lower())>0):
-                retorno += busca.upper() + ", "
+                retorno.append({'name': busca.upper(), 'status':'active'})
+        else:
+                retorno.append({'name': busca.upper(), 'status':'inactive'})
         return retorno
 
 def traduzir_tags(tags):
         padrao = ['aluno', 'interesse','empresa','autocad','revit','sketchup','excel','design gráfico',
                 'edição de vídeo','office','produto','promob','solidworks','design jogos']
-        retorno = ''
+        retorno=[]
         for palavra in padrao:
                 retorno = substituir_padrao(palavra,tags,retorno)
-        if(len(retorno)>2):
-                retorno = retorno[:-2]
         return retorno
-
-class Converter_lista:
-        def __init__(self):
-                resposta = requests.get(root+'lists/'+lista+'/members?count=1000&offset=0',headers=parametros_membros).json()
-                membros = resposta['members']
-
-                membros_basico = [
-                        [
-                        membro['email_address'].lower() if membro['email_address'] != '' else '',
-                        membro['merge_fields']['FNAME'].lower().capitalize() if membro['merge_fields']['FNAME'] != '' else '',
-                        membro['merge_fields']['LNAME'].lower().capitalize() if membro['merge_fields']['LNAME'] != '' else '',
-                        membro['status'],
-                        tags_para_lista(membro)
-                        ] for membro in membros]
-                self.salvar_contatos(membros_basico)
-        
-        def salvar_contatos(self,audiencia):
-                wb = Workbook()
-                ws = wb.create_sheet('contatos',0)
-                for contato in audiencia:
-                        ws.append(contato)
-                wb.save('./ContatosMailChimp.xlsx')
-
-class Obter_tags:
-        def __init__(self):
-                resposta = requests.get(root+'lists/'+lista+'/tag-search?count=100',headers=parametros_membros).json()
-                [print(respos['name']) for respos in resposta['tags']]
-
-class Adicionar_audiencia:
-        def __init__(self):
-                self.mailchimp = Client()
-                self.mailchimp.set_config({
-                "api_key": cfg.credenciais['chave_api'],
-                "server": cfg.credenciais['servidor']
-                })
-
-        def adicionar(self, audiencia):
-                self.mailchimp.lists.add_list_member(
-                        lista,{
-                                'email_address':audiencia[0],
-                                'status':'subscribed',
-                                'merge-fieds':{
-                                        'FNAME': audiencia[1],
-                                        'LNAME': audiencia[2]
-                                },
-                                'tags':{audiencia[4]}
-                        }
-                )
 
 class Obter_dados_planilha:
         def __init__(self):
@@ -107,9 +65,8 @@ class Obter_dados_planilha:
                         else:
                                 contato.append(tags)
                         contatos.append(contato)
-                        #Adicionar_audiencia.adicionar(Adicionar_audiencia,contato)
 
-class Editar_tags:
+class Mailchimp_Consumidor:
         def __init__(self):
                 self.mailchimp = Client()
                 self.mailchimp.set_config({
@@ -117,10 +74,77 @@ class Editar_tags:
                 "server": cfg.credenciais['servidor']
                 })
         
-        def obter_hash(self):
+        def obter_membros(self):
                 resposta = requests.get(root+'lists/'+lista+'/members?count=1000&offset=0',headers=parametros_membros).json()
                 membros = resposta['members']
-                return
 
-Obter_dados_planilha()
+                informacoes_membros = [
+                        [
+                        membro['email_address'].lower() if membro['email_address'] != '' else '',
+                        membro['merge_fields']['FNAME'].lower().capitalize() if membro['merge_fields']['FNAME'] != '' else '',
+                        membro['merge_fields']['LNAME'].lower().capitalize() if membro['merge_fields']['LNAME'] != '' else '',
+                        membro['status'],
+                        tags_para_lista(membro)
+                        ] for membro in membros]
+                return informacoes_membros
+        
+        def adicionar_membro(self,membro):
+                data = {
+                        'email_address':membro[0],
+                        'status':membro[3],
+                        'merge_fields':{
+                                'FNAME':membro[1],
+                                'LNAME':membro[2]
+                        }}
+                try:
+                        resposta = requests.post(root+'lists/'+lista+'/members/',headers=parametros_membros,json=data)
+                        print(resposta)
+                except ApiClientError as error:
+                        print("Error: {}".format(error.text))
+        
+        def atualizar_membro(self,membro):
+                tags = {
+                        'tags':[
+                                {'name':'ALUNOS AUTOCAD 2D','status':'inactive'},
+                                {'name':'ALUNOS DESIGN GRÁFICO','status':'inactive'},
+                                {'name':'ALUNOS EXCEL AVANÇADO','status':'inactive'},
+                                {'name':'ALUNOS OFFICE ESSENTIALS','status':'inactive'},
+                                {'name':'ALUNOS REVIT','status':'inactive'},
+                                {'name':'ALUNOS SKETCHUP','status':'inactive'},
+                                {'name':'EMPRESAS','status':'inactive'},
+                                {'name':'INTERESSE EDIÇÃO DE VÍDEO','status':'inactive'},
+                                {'name':'INTERESSE OFFICE ESSENTIALS','status':'inactive'},
+                                {'name':'INTERESSE POWER BI/EXCEL AVANÇADO','status':'inactive'},
+                                {'name':'INTERESSE PRODUTOS','status':'inactive'},
+                                {'name':'INTERESSE PROMOB','status':'inactive'},
+                                {'name':'INTERESSE SKETCHUP','status':'inactive'},
+                                {'name':'INTERESSE SOLIDWORKS','status':'inactive'},
+                                {'name':'INTERESSES AUTOCAD/REVIT','status':'inactive'},
+                                {'name':'INTERESSES DESIGN GRÁFICO','status':'inactive'},
+                                {'name':'INTERESSES DESIGN JOGOS','status':'inactive'}
+                        ]
+                }
+                for tag in tags['tags']:
+                        membro[4].append(tag)
+                tag = {'tags':membro[4]}
+                try:
+                        resposta = requests.post(root+'lists/'+lista+'/members/'+obter_hash_inscrito(membro[0])+'/tags',headers=parametros_membros,json=tag)
+                        print(resposta)
+                except ApiClientError as error:
+                        print("Error: {}".format(error.text))
+        
+        def salvar_planilha_contatos(self,audiencia):
+                wb = Workbook()
+                ws = wb.create_sheet('contatos',0)
+                for contato in audiencia:
+                        ws.append(contato)
+                wb.save('./ContatosMailChimp.xlsx')
+        
+        def obter_tags(self):
+                resposta = requests.get(root+'lists/'+lista+'/tag-search?count=100',headers=parametros_membros).json()
+                [print(respos['name']) for respos in resposta['tags']]
+
+bot = Mailchimp_Consumidor()
+[bot.atualizar_membro(x) for x in bot.obter_membros()]
+#Obter_dados_planilha()
 #Converter_lista()
